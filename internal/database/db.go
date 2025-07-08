@@ -6,35 +6,39 @@ import (
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
+	"home.ru/internal/config"
 )
 
 const maxOpenConns = 5
 const maxIdleConns = 5
 
-var connection sql.DB
+var connectionDB *DB
 var inited = false
 
-func GetConnection() *sql.DB {
-	pass := "root"
-	login := "root"
-	port := "3306"
-	host := "127.0.0.1"
-	name := "4devbau"
+type DB struct {
+	*sql.DB
+}
 
-	var connectStr = fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", login, pass, host, port, name)
-	db, err := sql.Open("mysql", connectStr)
-	if err != nil {
-		log.Fatal("database connection error", err)
+func GetConnection() (*DB, error) {
+
+	if !inited {
+		configDB := config.GetConfig()
+		var connectStr = fmt.Sprintf("%v:%v@tcp(%v:%v)/%v", configDB.Database.DbUser, configDB.Database.DbPass, configDB.Database.DbHost, configDB.Database.DbPort, configDB.Database.DbName)
+		db, err := sql.Open("mysql", connectStr)
+		if err != nil {
+			log.Fatal("database connection error", err)
+		}
+		connectionDB = &DB{db}
+
+		inited = true
+		db.SetMaxOpenConns(maxOpenConns)
+		db.SetMaxIdleConns(maxIdleConns)
+		if err = db.Ping(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	inited = true
-	db.SetMaxOpenConns(maxOpenConns)
-	db.SetMaxIdleConns(maxIdleConns)
-	if err = db.Ping(); err != nil {
-		log.Fatal(err)
-	}
-
-	return db
+	return connectionDB, nil
 }
 
 func ConvertSqlStringToString(valueSql sql.NullString) string {
